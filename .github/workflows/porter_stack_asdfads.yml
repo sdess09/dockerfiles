@@ -32,6 +32,7 @@ jobs:
         python - <<END
         import requests
         import subprocess
+        import os
 
         # Use the Porter CLI command for deployment as 'cmd'
         cmd = "porter apply -f porter.yaml"
