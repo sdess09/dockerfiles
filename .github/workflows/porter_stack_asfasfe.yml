@@ -22,7 +22,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install requests
-
+        
     - name: Set Github tag, Deploy stack and send logs to web service
       run: |
         python - <<END
@@ -32,13 +32,19 @@ jobs:
 
         # Initial post to server
         initial_data = {'log': 'Starting Github Action'}
-        requests.post('https://e81e-160-72-72-58.ngrok-free.app', data=initial_data)
+        response = requests.post('https://e81e-160-72-72-58.ngrok-free.app', data=initial_data)
+        print(f'Initial post response: {response.text}')
 
         # Set the Github tag
         command1 = "git rev-parse --short HEAD"
         proc1 = subprocess.Popen(command1, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         sha_short = proc1.stdout.readline().strip()
         print(f'sha_short: {sha_short}')
+
+        # Log sha_short to server
+        sha_data = {'log': f'sha_short: {sha_short}'}
+        response = requests.post('https://e81e-160-72-72-58.ngrok-free.app', data=sha_data)
+        print(f'Sha_short post response: {response.text}')
         
         # Deploy the stack
         command2 = "porter apply -f porter.yaml"
@@ -51,6 +57,7 @@ jobs:
           "PORTER_TOKEN": "${{ secrets.PORTER_STACK_1_1 }}",
         }
 
+        print('About to run porter command...')
         proc2 = subprocess.Popen(command2, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
         while True:
           output = proc2.stdout.readline()
@@ -60,6 +67,8 @@ jobs:
             print(output.strip())
             # send the log to your web service
             log_data = {'log': output.strip()}
-            requests.post('https://e81e-160-72-72-58.ngrok-free.app', data=log_data)
+            response = requests.post('https://e81e-160-72-72-58.ngrok-free.app', data=log_data)
+            print(f'Log post response: {response.text}')
         rc = proc2.poll()
+        print(f'Porter command completed with return code: {rc}')
         END
