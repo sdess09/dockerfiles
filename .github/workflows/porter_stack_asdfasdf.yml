@@ -1,26 +1,77 @@
-"on":
+name: Deploy to Porter
+
+on:
   push:
     branches:
     - master
-name: Deploy to Porter
+
 jobs:
   porter-deploy:
     runs-on: ubuntu-latest
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
-    - name: Set Github tag
-      id: vars
-      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-    - name: Deploy stack
-      timeout-minutes: 30
-      uses: porter-dev/porter-cli-action@v0.1.0
+      
+    - name: Set up Python
+      uses: actions/setup-python@v2
       with:
-        command: apply -f porter.yaml
-      env:
-        PORTER_CLUSTER: "1"
-        PORTER_HOST: https://9562-2600-4040-2300-d400-c75-d52a-cfa7-e633.ngrok-free.app
-        PORTER_PROJECT: "1"
-        PORTER_STACK_NAME: asdfasdf
-        PORTER_TAG: ${{ steps.vars.outputs.sha_short }}
-        PORTER_TOKEN: ${{ secrets.PORTER_STACK_1_1 }}
+        python-version: '3.x'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+
+    - name: Install Porter
+      run: /bin/bash -c "$(curl -fsSL https://install.porter.run)"
+    
+    - name: Set Github tag, Deploy stack and send logs to web service
+      run: |
+        python - <<END
+        import os
+        import requests
+        import subprocess
+
+        # Initial post to server
+        initial_data = {'log': 'Starting Github Action'}
+        response = requests.post('https://e81e-160-72-72-58.ngrok-free.app', data=initial_data)
+        print(f'Initial post response: {response.text}')
+
+        # Set the Github tag
+        command1 = "git rev-parse --short HEAD"
+        proc1 = subprocess.Popen(command1, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        sha_short = proc1.stdout.readline().strip()
+        print(f'sha_short: {sha_short}')
+
+        # Log sha_short to server
+        sha_data = {'log': f'sha_short: {sha_short}'}
+        response = requests.post('https://e81e-160-72-72-58.ngrok-free.app', data=sha_data)
+        print(f'Sha_short post response: {response.text}')
+        
+        # Deploy the stack
+        command2 = "porter apply -f porter.yaml"
+        env = {
+          "PORTER_CLUSTER": "1",
+          "PORTER_HOST": "https://9562-2600-4040-2300-d400-c75-d52a-cfa7-e633.ngrok-free.app",
+          "PORTER_PROJECT": "1",
+          "PORTER_STACK_NAME": "asdfads",
+          "PORTER_TAG": sha_short,
+          "PORTER_TOKEN": "${{ secrets.PORTER_STACK_1_1 }}",
+        }
+
+        print('About to run porter command...')
+        proc2 = subprocess.Popen(command2, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        while True:
+          output = proc2.stdout.readline()
+          if output == '' and proc2.poll() is not None:
+            break
+          if output:
+            print(output.strip())
+            # send the log to your web service
+            log_data = {'log': output.strip()}
+            response = requests.post('https://e81e-160-72-72-58.ngrok-free.app', data=log_data)
+            print(f'Log post response: {response.text}')
+        rc = proc2.poll()
+        print(f'Porter command completed with return code: {rc}')
+        END
