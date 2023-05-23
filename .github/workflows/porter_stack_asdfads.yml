@@ -1,4 +1,5 @@
 name: Deploy to Porter
+
 on:
   push:
     branches:
@@ -16,19 +17,6 @@ jobs:
       id: vars
       run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-    - name: Deploy stack
-      timeout-minutes: 30
-      uses: porter-dev/porter-cli-action@v0.1.0
-      with:
-        command: apply -f porter.yaml
-      env:
-        PORTER_CLUSTER: "1"
-        PORTER_HOST: https://9562-2600-4040-2300-d400-c75-d52a-cfa7-e633.ngrok-free.app
-        PORTER_PROJECT: "1"
-        PORTER_STACK_NAME: asdfads
-        PORTER_TAG: ${{ env.sha_short }}
-        PORTER_TOKEN: ${{ secrets.PORTER_STACK_1_1 }}
-
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
@@ -39,16 +27,25 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests
 
-    - name: Run a script and send logs to a web service
+    - name: Deploy stack and send logs to web service
       run: |
         python - <<END
         import requests
         import subprocess
 
-        # replace 'your_script' with your actual script
-        cmd = "echo 'Hello, world!' && date"
+        # Use the Porter CLI command for deployment as 'cmd'
+        cmd = "porter apply -f porter.yaml"
 
-        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        env = {
+          "PORTER_CLUSTER": "1",
+          "PORTER_HOST": "https://9562-2600-4040-2300-d400-c75-d52a-cfa7-e633.ngrok-free.app",
+          "PORTER_PROJECT": "1",
+          "PORTER_STACK_NAME": "asdfads",
+          "PORTER_TAG": "${{ env.sha_short }}",
+          "PORTER_TOKEN": "${{ secrets.PORTER_STACK_1_1 }}",
+        }
+
+        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
 
         while True:
           output = proc.stdout.readline()
