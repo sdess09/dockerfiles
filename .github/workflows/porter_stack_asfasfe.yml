@@ -1,4 +1,4 @@
-name: Deploy to Porter SHOW LOGS
+name: Deploy to Porter
 
 on:
   push:
@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
@@ -20,39 +23,43 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests
 
-    - name: Deploy stack and send logs to web service
+    - name: Set Github tag, Deploy stack and send logs to web service
       run: |
         python - <<END
         import os
         import requests
         import subprocess
 
-        cmd = [
-            "git clone https://github.com/${{ github.repository }} .",
-            "git checkout ${{ github.sha }}",
-            "sha_short=$(git rev-parse --short HEAD)",
-            "porter apply -f porter.yaml"
-        ]
+        # Initial post to server
+        initial_data = {'log': 'Starting Github Action'}
+        requests.post('https://e81e-160-72-72-58.ngrok-free.app', data=initial_data)
 
+        # Set the Github tag
+        command1 = "git rev-parse --short HEAD"
+        proc1 = subprocess.Popen(command1, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        sha_short = proc1.stdout.readline().strip()
+        print(f'sha_short: {sha_short}')
+        
+        # Deploy the stack
+        command2 = "porter apply -f porter.yaml"
         env = {
           "PORTER_CLUSTER": "1",
           "PORTER_HOST": "https://9562-2600-4040-2300-d400-c75-d52a-cfa7-e633.ngrok-free.app",
           "PORTER_PROJECT": "1",
           "PORTER_STACK_NAME": "asdfads",
-          "PORTER_TAG": "${{ env.sha_short }}",
+          "PORTER_TAG": sha_short,
           "PORTER_TOKEN": "${{ secrets.PORTER_STACK_1_1 }}",
         }
 
-        for command in cmd:
-            proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
-            while True:
-              output = proc.stdout.readline()
-              if output == '' and proc.poll() is not None:
-                break
-              if output:
-                print(output.strip())
-                # send the log to your web service
-                log_data = {'log': output.strip()}
-                requests.post('https://e81e-160-72-72-58.ngrok-free.app', data=log_data)
-            rc = proc.poll()
+        proc2 = subprocess.Popen(command2, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        while True:
+          output = proc2.stdout.readline()
+          if output == '' and proc2.poll() is not None:
+            break
+          if output:
+            print(output.strip())
+            # send the log to your web service
+            log_data = {'log': output.strip()}
+            requests.post('https://e81e-160-72-72-58.ngrok-free.app', data=log_data)
+        rc = proc2.poll()
         END
